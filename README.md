@@ -8,17 +8,17 @@ vectors, and find the residual vector.
 ## Compilation
 Please make sure the CUDA toolkit is installed first. To Compile:
 
-**nvcc vec_addition.cu -o COMPILED**
+    nvcc vec_addition.cu -o COMPILED
 
 ## Usage
 To use the program, there are a few command line arguments that need to be passed.
 This usage example assumes that the executable name is COMPILED:
 
-**./COMPILED "Size of Vectors" "Number of Blocks" "Number of Threads" "Output Mode"**
+    ./COMPILED <Size_of_Vectors> <Number_of_Blocks> <Number_of_Threads> <Output_Mode>
 
-Size of Vectors   :     The number of items in each vector.
-Number of Blocks  :     The number of blocks used in the GPU.
-Number of Threads :     The number of threads used in each GPU block.
-Output Mode       :     'q' for quiet, 'v' for verbose.
-                        In quiet mode, only the timing results are shown.
-                        In Verbose mode, the matrices and residual are also shown.
+* Size_of_Vectors   :  The number of items in each vector.
+* Number_of_Blocks  :  The number of blocks used in the GPU.
+* Number_of_Threads :  The number of threads used in each GPU block.
+* Output_Mode       :  'q' for quiet, 'v' for verbose.
+                       In quiet mode, only the timing results are shown.
+                       In Verbose mode, the matrices and residual are also shown.
