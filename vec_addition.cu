@@ -43,13 +43,18 @@ double cuda_addition(type* a, type* b, type* c, int n, int blocks, int threads)
     //Copy the results back from Vram to main ram.
     cudaMemcpy(c, cu_vec_c, sizeof(type) * n, cudaMemcpyDeviceToHost);
 
+    //Wait for the thread to finish execution.
+    cudaDeviceSynchronize();
+
+    //Calculate the total time in seconds that it took to compute.
+    auto total = std::chrono::high_resolution_clock::now() - begin;
+
     //Deallocate memory in the GPU.
     cudaFree(cu_vec_a);
     cudaFree(cu_vec_b);
     cudaFree(cu_vec_c);
 
-    //Calculate and return the total time in seconds that it took to compute.
-    auto total = std::chrono::high_resolution_clock::now() - begin;
+    //Return the total time in seconds that it took to compute.
     return std::chrono::duration<double> (total).count();;
 }
 
