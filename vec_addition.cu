@@ -14,13 +14,14 @@ typedef int type;
 #define RANDOMIZE_MAX 10
 
 //Cuda calculator which will run in each thread.
-__global__ void cuda_calculator(type* a, type* b, type* c)
+__global__ void cuda_calculator(type* a, type* b, type* c, int* num_calcs)
 {
-    //Calculate the index.
-    int index = threadIdx.x + blockIdx.x * blockDim.x;
+    //Calculate the starting index.
+    int start_index = (threadIdx.x + blockIdx.x * blockDim.x) * (*num_calcs);
 
     //Add the vectors in the current thread index.
-    c[index] = a[index] + b[index];
+    for(int i = 0; i < *num_calcs; i++)
+        c[start_index + i] = a[start_index + i] + b[start_index + i];
 }
 
 //Cuda addition which runs the cuda program.
@@ -30,21 +31,27 @@ double cuda_addition(type* a, type* b, type* c, int n, int blocks, int threads)
     type* cu_vec_a;
     type* cu_vec_b;
     type* cu_vec_c;
+    int* cu_num_calcs;
+
+    //Calculate the number of elements that this thread will take.
+    int num_calcs = (n / (blocks * threads)) + (n % (blocks *  threads));
 
     //Allocate memory on the device for the arrays.
     cudaMalloc((void**) &cu_vec_a, sizeof(type) * n);
     cudaMalloc((void**) &cu_vec_b, sizeof(type) * n);
     cudaMalloc((void**) &cu_vec_c, sizeof(type) * n);
+    cudaMalloc((void**) &cu_num_calcs, sizeof(int));
 
     //Capture the beginning time before the data transfer and calculations.
     auto begin = std::chrono::high_resolution_clock::now();
 
-    //Copy the data from the main memory to Vram.
+    //Copy the data, and the size from the main memory to VRAM.
     cudaMemcpy(cu_vec_a, a, sizeof(type) * n, cudaMemcpyHostToDevice);
     cudaMemcpy(cu_vec_b, b, sizeof(type) * n, cudaMemcpyHostToDevice);
+    cudaMemcpy(cu_num_calcs, &num_calcs, sizeof(int), cudaMemcpyHostToDevice);
 
     //Launch the addition kernel on the device.
-    cuda_calculator<<<blocks, threads>>>(cu_vec_a, cu_vec_b, cu_vec_c);
+    cuda_calculator<<<blocks, threads>>>(cu_vec_a, cu_vec_b, cu_vec_c, cu_num_calcs);
 
     //Copy the results back from Vram to main ram.
     cudaMemcpy(c, cu_vec_c, sizeof(type) * n, cudaMemcpyDeviceToHost);
@@ -161,10 +168,6 @@ int main(int argc, char** argv)
     //Check for invalid threads / blocks / n sizes.
     if(n < 1 || blocks < 1 || threads < 1)
         return error("Invalid arguments. All parameters should be positive.");
-
-    //Check for invalid relation between n and blocks/threads.
-    if(n > (blocks * threads))
-        return error("Invalid arguments. (Blocks * Threads) should be larger than the vector Size.");
 
     //Allocate memory for the input vectors.
     type* vec_a = new type[n];
