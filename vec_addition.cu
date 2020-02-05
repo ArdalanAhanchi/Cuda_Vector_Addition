@@ -16,8 +16,11 @@ typedef int type;
 //Cuda calculator which will run in each thread.
 __global__ void cuda_calculator(type* a, type* b, type* c)
 {
+    //Calculate the index.
+    int index = threadIdx.x + blockIdx.x * blockDim.x;
+
     //Add the vectors in the current thread index.
-    c[threadIdx.x] = a[threadIdx.x] + b[threadIdx.x];
+    c[index] = a[index] + b[index];
 }
 
 //Cuda addition which runs the cuda program.
