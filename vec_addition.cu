@@ -3,6 +3,9 @@
 #include <cstdlib>                                //For random number generator.
 #include <chrono>                                 //For getting time.
 
+#include "cuda_runtime.h"                         //For Windows support.
+#include "device_launch_parameters.h"
+
 //The type that is used for the calculations.
 typedef int type;
 
@@ -178,9 +181,11 @@ int main(int argc, char** argv)
     //Perform the cuda addition.
     double cuda_time = cuda_addition(vec_a, vec_b, vec_c_cuda, n, blocks, threads);
 
-    //Print the timing results.
+    //Print the timing results, and the input arguments.
     std::cout << "[Cuda_Time_Seconds]=" << cuda_time
-        << "  [Sequential_Time_Seconds]=" << seq_time << std::endl;
+        << "  [Sequential_Time_Seconds]=" << seq_time
+        << "  [N]=" << n << "  [Blocks]=" << blocks
+        << "  [Threads]=" << threads << std::endl;
 
     //Calculate residual vector for sequential implementation vs cuda.
     type* residual = new type[n];
