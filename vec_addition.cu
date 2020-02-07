@@ -3,6 +3,7 @@
 #include <cstdlib>                                //For random number generator.
 #include <chrono>                                 //For getting time.
 #include <climits>                                //For maximum n.
+#include <cmath>
 
 #include "cuda_runtime.h"                         //For Windows support.
 #include "device_launch_parameters.h"
@@ -18,16 +19,16 @@ typedef int type;
 __global__ void cuda_calculator(type* a, type* b, type* c, int* num_calcs)
 {
     //Calculate the starting index.
-    size_t start_index = (threadIdx.x + blockIdx.x * blockDim.x) * (*num_calcs);
+    int start_index = (threadIdx.x + blockIdx.x * blockDim.x) * (*num_calcs);
 
     //Add the vectors in the current thread index.
-    for(size_t i = 0; i < *num_calcs; i++)
-        c[start_index + i] = a[start_index + i] + b[start_index + i];
+    for(int i = start_index; i < (start_index + *num_calcs); i++)
+        c[i] = a[i] + b[i];
 }
 
 //Cuda addition which runs the cuda program.
-int cuda_addition(type* a, type* b, type* c, size_t n, size_t blocks,
-    size_t threads, double times[3])
+int cuda_addition(type* a, type* b, type* c, int n, int blocks,
+    int threads, double times[3])
 {
     //Create pointers for the GPU memory allocation
     type* cu_vec_a;
@@ -35,17 +36,16 @@ int cuda_addition(type* a, type* b, type* c, size_t n, size_t blocks,
     type* cu_vec_c;
     int* cu_num_calcs;
 
-    //Calculate the number of elements that this thread will take.
-    size_t num_calcs = (n / (blocks * threads));
+    //Calculate the number of elements that each kernel will handle (round up).
+    int num_calcs = std::ceil((double) n / (((double) blocks) * ((double) threads)));
 
-    //Check if it's not rounded, or it it was zero.
-    if(n % (blocks * threads) != 0 || num_calcs <= 0)
-        num_calcs++;
+    //Calculate the padding (for output matrix to avoid conditionals in kernel.
+    int padding_size = (num_calcs * blocks * threads) - n;
 
     //Allocate memory on the device for the arrays.
     cudaMalloc((void**) &cu_vec_a, sizeof(type) * n);
     cudaMalloc((void**) &cu_vec_b, sizeof(type) * n);
-    cudaMalloc((void**) &cu_vec_c, sizeof(type) * n);
+    cudaMalloc((void**) &cu_vec_c, sizeof(type) * (n + padding_size));
     cudaMalloc((void**) &cu_num_calcs, sizeof(int));
 
     //Wait for the thread to finish execution.
@@ -109,13 +109,13 @@ int cuda_addition(type* a, type* b, type* c, size_t n, size_t blocks,
 }
 
 //Sequential addition function.
-double seq_addition(type* a, type* b, type* c, size_t size)
+double seq_addition(type* a, type* b, type* c, int size)
 {
     //Capture the beginning time before the calculations.
     auto begin = std::chrono::high_resolution_clock::now();
 
     //Iterate over the vectors and add the elements.
-    for(size_t i = 0; i < size; i++)
+    for(int i = 0; i < size; i++)
         c[i] = a[i] + b[i];
 
     //Calculate and return the total time in seconds that it took to compute.
@@ -124,11 +124,23 @@ double seq_addition(type* a, type* b, type* c, size_t size)
 }
 
 //Sequential subtraction function (used for residual matrix).
-void seq_subtraction(type* a, type* b, type* c, size_t size)
+void seq_subtraction(type* a, type* b, type* c, int size)
 {
     //Iterate over the vectors and subtract the elements.
-    for(size_t i = 0; i < size; i++)
+    for(int i = 0; i < size; i++)
         c[i] = a[i] - b[i];
+}
+
+//Returns false if first and second aren't equal, true otherwise.
+bool are_equal(type* first, type* second, int size)
+{
+    //Iterate over and return false if not equal.
+    for(int i = 0; i < size; i++)
+        if(first[i] != second[i])
+            return false;
+
+    //If we get here, they were equal.
+    return true;
 }
 
 //A function which randomizes the vector, by defualt it only uses values between -10 - 10
@@ -138,16 +150,16 @@ void randomize(type* vec, int size, int min = RANDOMIZE_MIN, int max = RANDOMIZE
     std::srand(std::chrono::system_clock::now().time_since_epoch().count());
 
     //Iterate through, and generate random numbers for each index.
-    for(size_t i = 0; i < size; i++)
+    for(int i = 0; i < size; i++)
         vec[i] = ((type) std::rand() %
             (type) (RANDOMIZE_MAX * 2) + (type) RANDOMIZE_MIN) % RANDOMIZE_MAX ;
 }
 
 //Print the given vector to stdout.
-void dump(type* vec, size_t size)
+void dump(type* vec, int size)
 {
     //Iterate through, and generate random numbers for each index.
-    for(size_t i = 0; i < size - 1; i++)
+    for(int i = 0; i < size - 1; i++)
         std::cout << std::scientific << vec[i] <<  " | " ;
 
     //Print the last item in a different format and add a new line.
@@ -158,7 +170,7 @@ void dump(type* vec, size_t size)
 int error(std::string msg)
 {
     //Print the error message.
-    std::cout << msg << std::endl;
+    std::cout << "Error: " << msg << std::endl;
 
     //Print the usage message.
     std::cout << std::endl << "Usage Guide:" << std::endl
@@ -175,7 +187,7 @@ int error(std::string msg)
 int main(int argc, char** argv)
 {
     //Define values for parameters.
-    size_t n, blocks, threads;
+    int n, blocks, threads;
     bool verbose;
 
     //Check for invalid number of args.
@@ -207,7 +219,7 @@ int main(int argc, char** argv)
         return error("Invalid arguments. All parameters should be positive.");
 
     //Check if we're gonna get overflow.
-    if(n > UINT_MAX)
+    if(n > INT_MAX)
         return error("Integer Overflow, please reduce N.");
 
     //Allocate memory for the input vectors.
@@ -231,7 +243,11 @@ int main(int argc, char** argv)
 
     //Check the status.
     if(stat == EXIT_FAILURE)
-        std::cout << "Error: Failed to execute kernel." << std::endl;
+        return error("Failed to execute kernel.");
+
+    //Check if the cuda and sequential results are not equal (error).
+    if(!are_equal(vec_c_seq, vec_c_cuda, n))
+        return error("Output vectors were not equal.");
 
     //Print the timing results, and the input arguments.
     std::cout << "[Cuda_Transfer_To_Device_Seconds]=" << std::scientific << times[0]
@@ -242,14 +258,15 @@ int main(int argc, char** argv)
         << "  [Threads]=" << threads
         << std::endl;
 
-
-    //Calculate residual vector for sequential implementation vs cuda.
+    //Allocate memory for residual vector.
     type* residual = new type[n];
-    seq_subtraction(vec_c_seq, vec_c_cuda, residual, n);
 
     //Check if we're in verbose output mode.
     if(verbose)
     {
+        //Calculate residual vector for sequential implementation vs cuda.
+        seq_subtraction(vec_c_seq, vec_c_cuda, residual, n);
+
         //Print out the inputs, calculations and residual vector.
         std::cout << std::endl << "Printing out the First Vector:" << std::endl;
         dump(vec_a, n);
