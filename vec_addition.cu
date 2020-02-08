@@ -1,3 +1,7 @@
+//Vector Addition using CUDA.
+//Winter 2020
+//High Performance Computing.
+
 #include <string>                                 //For stoi.
 #include <iostream>                               //For stdout.
 #include <cstdlib>                                //For random number generator.
@@ -16,13 +20,14 @@ typedef int type;
 #define RANDOMIZE_MAX 10
 
 //Cuda calculator which will run in each thread.
-__global__ void cuda_calculator(type* a, type* b, type* c, int* num_calcs)
+__global__ void cuda_calculator(type* a, type* b, type* c, int num_calcs)
 {
     //Calculate the starting index.
-    int start_index = (threadIdx.x + blockIdx.x * blockDim.x) * (*num_calcs);
+    int start_index = (threadIdx.x + blockIdx.x * blockDim.x) * num_calcs;
+    int end_index = start_index + num_calcs;
 
     //Add the vectors in the current thread index.
-    for(int i = start_index; i < (start_index + *num_calcs); i++)
+    for(int i = start_index; i < end_index; i++)
         c[i] = a[i] + b[i];
 }
 
@@ -34,19 +39,17 @@ int cuda_addition(type* a, type* b, type* c, int n, int blocks,
     type* cu_vec_a;
     type* cu_vec_b;
     type* cu_vec_c;
-    int* cu_num_calcs;
 
     //Calculate the number of elements that each kernel will handle (round up).
     int num_calcs = std::ceil((double) n / (((double) blocks) * ((double) threads)));
 
     //Calculate the padding (for output matrix to avoid conditionals in kernel.
-    int padding_size = (num_calcs * blocks * threads) - n;
+    int padding_size = (int)(num_calcs * blocks * threads) - n ;
 
     //Allocate memory on the device for the arrays.
-    cudaMalloc((void**) &cu_vec_a, sizeof(type) * n);
-    cudaMalloc((void**) &cu_vec_b, sizeof(type) * n);
+    cudaMalloc((void**) &cu_vec_a, sizeof(type) * (n + padding_size));
+    cudaMalloc((void**) &cu_vec_b, sizeof(type) * (n + padding_size));
     cudaMalloc((void**) &cu_vec_c, sizeof(type) * (n + padding_size));
-    cudaMalloc((void**) &cu_num_calcs, sizeof(int));
 
     //Wait for the thread to finish execution.
     cudaDeviceSynchronize();
@@ -55,9 +58,8 @@ int cuda_addition(type* a, type* b, type* c, int n, int blocks,
     auto begin_transfer_to = std::chrono::high_resolution_clock::now();
 
     //Copy the data, and the size from the main memory to VRAM.
-    cudaMemcpy(cu_vec_a, a, sizeof(type) * n, cudaMemcpyHostToDevice);
-    cudaMemcpy(cu_vec_b, b, sizeof(type) * n, cudaMemcpyHostToDevice);
-    cudaMemcpy(cu_num_calcs, &num_calcs, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(cu_vec_a, a, ((int) sizeof(type)) * n, cudaMemcpyHostToDevice);
+    cudaMemcpy(cu_vec_b, b, ((int) sizeof(type)) * n, cudaMemcpyHostToDevice);
 
     //Wait for the thread to finish execution.
     cudaDeviceSynchronize();
@@ -70,7 +72,7 @@ int cuda_addition(type* a, type* b, type* c, int n, int blocks,
     auto begin_calcs_only = std::chrono::high_resolution_clock::now();
 
     //Launch the addition kernel on the device.
-    cuda_calculator<<<blocks, threads>>>(cu_vec_a, cu_vec_b, cu_vec_c, cu_num_calcs);
+    cuda_calculator<<<blocks, threads>>>(cu_vec_a, cu_vec_b, cu_vec_c, num_calcs);
 
     //Check if we got any errors.
     if(cudaGetLastError() != cudaSuccess)
@@ -87,7 +89,7 @@ int cuda_addition(type* a, type* b, type* c, int n, int blocks,
     auto begin_transfer_from = std::chrono::high_resolution_clock::now();
 
     //Copy the results back from Vram to main ram.
-    cudaMemcpy(c, cu_vec_c, sizeof(type) * n, cudaMemcpyDeviceToHost);
+    cudaMemcpy(c, cu_vec_c, ((int) sizeof(type)) * n, cudaMemcpyDeviceToHost);
 
     //Wait for the thread to finish execution.
     cudaDeviceSynchronize();
@@ -100,7 +102,6 @@ int cuda_addition(type* a, type* b, type* c, int n, int blocks,
     cudaFree(cu_vec_a);
     cudaFree(cu_vec_b);
     cudaFree(cu_vec_c);
-    cudaFree(cu_num_calcs);
 
     //Wait for the thread to finish execution.
     cudaDeviceSynchronize();
@@ -247,7 +248,11 @@ int main(int argc, char** argv)
 
     //Check if the cuda and sequential results are not equal (error).
     if(!are_equal(vec_c_seq, vec_c_cuda, n))
-        return error("Output vectors were not equal.");
+    {
+        std::cout << "Error: Output vectors were not equal." << std::endl
+            << "ErrorInfo: N=" << n << " Blocks=" << blocks
+            << " Threads=" << threads << std::endl;
+    }
 
     //Print the timing results, and the input arguments.
     std::cout << "[Cuda_Transfer_To_Device_Seconds]=" << std::scientific << times[0]

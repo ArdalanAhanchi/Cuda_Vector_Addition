@@ -22,3 +22,7 @@ This usage example assumes that the executable name is COMPILED:
 * Output_Mode       :  'q' for quiet, 'v' for verbose.
                        In quiet mode, only the timing results are shown.
                        In Verbose mode, the matrices and residual are also shown.
+
+## Plotter
+Plotter is a program which parses the output from the program, and creates a 3D
+Plot. 

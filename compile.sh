@@ -1,3 +1,3 @@
 #! /bin/bash
 
-nvcc vec_addition.cu -o COMPILED
+nvcc vec_addition.cu -o ./build/COMPILED

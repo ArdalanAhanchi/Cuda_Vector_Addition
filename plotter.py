@@ -7,6 +7,7 @@
 import re                               #For regex pattern recognition.
 import sys                              #To read from stdin.
 import matplotlib.pyplot as plot        #For plotting.
+from mpl_toolkits import mplot3d        #For 3D stuff.
 
 #A class which represents an output entry which will be plotted.
 class Entry:
@@ -17,7 +18,7 @@ class Entry:
         self.calc_time_cuda = calc_time_cuda
         self.calc_time_seq = calc_time_seq
         self.n = n
-        self.blocks = block
+        self.blocks = blocks
         self.threads = threads
 
 #Create a regex pattern for matching the data from the output.
@@ -45,20 +46,40 @@ for line in sys.stdin:
 
 #Figure 1
 ##########################################################################################
-fig1_x_seq, fig1_x_cu = [], []
-fig1_y_seq, fig1_y_cu = [], []
+fig1_x_seq, fig1_x_cu_total, fig1_x_cu_calc_only = [], [], []
+fig1_y_seq, fig1_y_cu_total, fig1_y_cu_calc_only = [], [], []
+fig1_z_seq, fig1_z_cu_total, fig1_z_cu_calc_only = [], [], []
 
 #Iterate through the data and filter out the right points for drawing.
 for ent in data:
-    if ent.? == ?:                           #Add the data points.
-        fig1_x_seq.append(ent.?)
-        fig1_y_seq.append(ent.?)
+    #    fig1_x_seq.append(ent.calc_time_seq)
+    #    fig1_y_seq.append(ent.blocks)
+    #    fig1_z_seq.append(ent.threads)
+
+    fig1_x_cu_total.append(ent.calc_time_cuda + ent.transfer_to_dev + ent.transfer_to_host)
+    fig1_y_cu_total.append((ent.blocks * ent.threads))
+    fig1_z_cu_total.append(ent.n)
+
+    fig1_x_cu_calc_only.append(ent.calc_time_cuda)
+    fig1_y_cu_calc_only.append((ent.blocks * ent.threads))
+    fig1_z_cu_calc_only.append(ent.n)
 
 
-plot.plot(fig1_x_seq, fig1_y_seq, label="Sequential")
-plot.plot(fig1_x_12t, fig1_y_12t, label="Cuda")
-plot.legend()
-plot.title("Vector Addition")
-plot.xlabel("N")
-plot.ylabel("Time (Seconds)")
+#Create the 3d plot.
+fig = plot.figure()
+ax = plot.axes(projection='3d')
+
+#Set labels and plot it.
+plot.title("CUDA Total Time")
+ax.scatter3D(fig1_z_cu_total, fig1_y_cu_total, fig1_x_cu_total)
+ax.set_xlabel("N (Size)")
+ax.set_ylabel("Total Threads (Threads * Blocks)")
+ax.set_zlabel("Time (Seconds)")
+plot.show()
+
+plot.title("CUDA Calculations Only Time")
+ax.scatter3D(fig1_z_cu_calc_only, fig1_y_cu_calc_only, fig1_x_cu_calc_only)
+ax.set_xlabel("N (Size)")
+ax.set_ylabel("Total Threads (Threads * Blocks)")
+ax.set_zlabel("Time (Seconds)")
 plot.show()
